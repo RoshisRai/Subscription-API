@@ -188,9 +188,10 @@ export const signIn = async (req, res, next) => {
 
 export const signOut = async (req, res, next) => {
     try {
+        // No action needed on the server side
         res.status(200).json({
             success: true,
-            message: "Successfully signed out"
+            message: "No action needed on the server side"
         });
     } catch (error) {
         next(error);
