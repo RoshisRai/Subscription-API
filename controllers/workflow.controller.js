@@ -14,77 +14,67 @@ dayjs.extend(isSameOrAfter);
 const REMINDERS = [7, 5, 2, 1];
 
 export const sendReminders = serve(async (context) => {
-    try {
-        const { subscriptionId } = context.requestPayload;
-        
-        // Add logging to debug the workflow
-        console.log(`Starting reminder workflow for subscription: ${subscriptionId}`);
-        
-        const subscription = await fetchSubscription(context, subscriptionId);
+    const { subscriptionId } = context.requestPayload;
+    
+    // Add logging to debug the workflow
+    console.log(`Starting reminder workflow for subscription: ${subscriptionId}`);
+    
+    const subscription = await fetchSubscription(context, subscriptionId);
 
-        if (!subscription) {
-            console.log(`Subscription ${subscriptionId} not found. Stopping workflow.`);
-            return;
-        }
-
-        if (subscription.status !== "active") {
-            console.log(`Subscription ${subscriptionId} is not active (status: ${subscription.status}). Stopping workflow.`);
-            return;
-        }
-
-        const renewalDate = dayjs(subscription.renewalDate);
-        const today = dayjs();
-        
-        console.log(`Renewal date: ${renewalDate.format('YYYY-MM-DD')}, Today: ${today.format('YYYY-MM-DD')}`);
-        
-        if (renewalDate.isBefore(today, 'day')) {
-            console.log(`Renewal date has passed for subscription ${subscriptionId}. Stopping workflow.`);
-            return;
-        }
-
-        // Process each reminder day
-        for (const daysBefore of REMINDERS) {
-            const reminderDate = renewalDate.subtract(daysBefore, 'day');
-            console.log(`Checking reminder for ${daysBefore} days before: ${reminderDate.format('YYYY-MM-DD')}`);
-            
-            // If today is the reminder date, trigger the reminder
-            if (today.format('YYYY-MM-DD') === reminderDate.format('YYYY-MM-DD')) {
-                console.log(`Today matches reminder date. Triggering ${daysBefore} days before reminder`);
-                await triggerRemainder(context, `${daysBefore} days before reminder`, subscription);
-                continue; // Already triggered, no need to sleep
-            }
-            
-            // If the reminder date is in the future, sleep until then
-            if (reminderDate.isAfter(today, 'day')) {
-                console.log(`Reminder date is in the future. Sleeping until ${reminderDate.format('YYYY-MM-DD')}`);
-                await sleepUntilRemainder(context, `${daysBefore} days before`, reminderDate);
-                
-                // After waking up, trigger the reminder
-                console.log(`Woke up for ${daysBefore} days before reminder`);
-                await triggerRemainder(context, `${daysBefore} days before reminder`, subscription);
-            } else {
-                console.log(`Reminder date ${reminderDate.format('YYYY-MM-DD')} has already passed`);
-            }
-        }
-        
-        console.log(`All reminders processed for subscription ${subscriptionId}`);
-    } catch (error) {
-        console.error(`Error in reminder workflow: ${error.message}`);
-        throw error; // Re-throw so Upstash can see the error
+    if (!subscription) {
+        console.log(`Subscription ${subscriptionId} not found. Stopping workflow.`);
+        return;
     }
+
+    if (subscription.status !== "active") {
+        console.log(`Subscription ${subscriptionId} is not active (status: ${subscription.status}). Stopping workflow.`);
+        return;
+    }
+
+    const renewalDate = dayjs(subscription.renewalDate);
+    const today = dayjs();
+    
+    console.log(`Renewal date: ${renewalDate.format('YYYY-MM-DD')}, Today: ${today.format('YYYY-MM-DD')}`);
+    
+    if (renewalDate.isBefore(today, 'day')) {
+        console.log(`Renewal date has passed for subscription ${subscriptionId}. Stopping workflow.`);
+        return;
+    }
+
+    // Process each reminder day
+    for (const daysBefore of REMINDERS) {
+        const reminderDate = renewalDate.subtract(daysBefore, 'day');
+        console.log(`Checking reminder for ${daysBefore} days before: ${reminderDate.format('YYYY-MM-DD')}`);
+        
+        // If today is the reminder date, trigger the reminder
+        if (today.format('YYYY-MM-DD') === reminderDate.format('YYYY-MM-DD')) {
+            console.log(`Today matches reminder date. Triggering ${daysBefore} days before reminder`);
+            await triggerRemainder(context, `${daysBefore} days before reminder`, subscription);
+            continue; // Already triggered, no need to sleep
+        }
+        
+        // If the reminder date is in the future, sleep until then
+        if (reminderDate.isAfter(today, 'day')) {
+            console.log(`Reminder date is in the future. Sleeping until ${reminderDate.format('YYYY-MM-DD')}`);
+            await sleepUntilRemainder(context, `${daysBefore} days before`, reminderDate);
+            
+            // After waking up, trigger the reminder
+            console.log(`Woke up for ${daysBefore} days before reminder`);
+            await triggerRemainder(context, `${daysBefore} days before reminder`, subscription);
+        } else {
+            console.log(`Reminder date ${reminderDate.format('YYYY-MM-DD')} has already passed`);
+        }
+    }
+    
+    console.log(`All reminders processed for subscription ${subscriptionId}`);
 });
 
 const fetchSubscription = async (context, subscriptionId) => {
-    try {
-        return await context.run('get subscription', async () => {
-            const subscription = await Subscription.findById(subscriptionId).populate('user', 'name email');
-            console.log(`Fetched subscription: ${subscription ? 'Found' : 'Not found'}`);
-            return subscription;
-        });
-    } catch (error) {
-        console.error(`Error fetching subscription: ${error.message}`);
-        throw error;
-    }
+    return await context.run('get subscription', async () => {
+        const subscription = await Subscription.findById(subscriptionId).populate('user', 'name email');
+        console.log(`Fetched subscription: ${subscription ? 'Found' : 'Not found'}`);
+        return subscription;
+    });
 }
 
 const sleepUntilRemainder = async (context, label, date) => {
@@ -95,21 +85,16 @@ const sleepUntilRemainder = async (context, label, date) => {
 }
 
 const triggerRemainder = async (context, label, subscription) => {
-    try {
-        return await context.run(label, async () => {
-            console.log(`Triggering reminder: ${label} for subscription ${subscription._id}`);
-            
-            await sendReminderEmail({
-                to: subscription.user.email,
-                type: label,
-                subscription,
-            });
-            
-            console.log(`Email sent to ${subscription.user.email} for ${label}`);
-            return true;
+    return await context.run(label, async () => {
+        console.log(`Triggering reminder: ${label} for subscription ${subscription._id}`);
+        
+        await sendReminderEmail({
+            to: subscription.user.email,
+            type: label,
+            subscription,
         });
-    } catch (error) {
-        console.error(`Error sending reminder email: ${error.message}`);
-        throw error;
-    }
+        
+        console.log(`Email sent to ${subscription.user.email} for ${label}`);
+        return true;
+    });
 }
